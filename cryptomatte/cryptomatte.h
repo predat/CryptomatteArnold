@@ -1179,9 +1179,9 @@ private:
         const String filter_param = filter_type.substr(0, filter_type.find("_filter"));
 
         AtNode* filter = AiNodeLookUpByName("lentil_replaced_filter");
-        AiNodeSetStr(filter, "filter", filter_param.c_str());
-        AiNodeSetInt(filter, "rank", aovindex * 2);
-        AiNodeSetFlt(filter, "width", width);
+        // AiNodeSetStr(filter, "filter", filter_param.c_str());
+        // AiNodeSetInt(filter, "rank", aovindex * 2);
+        // AiNodeSetFlt(filter, "width", width);
         return filter;
     }
 
