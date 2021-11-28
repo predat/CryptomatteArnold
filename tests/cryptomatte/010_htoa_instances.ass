@@ -9949,6 +9949,7 @@ skydome_light
 {
  name /obj/arnold_skydome_light1
  color /obj/arnold_skydome_light1/shopnet/arnold_vopnet/physical_sky1
+ camera 0
  exposure 2
  samples 2
  motion_end 0

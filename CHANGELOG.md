@@ -1,3 +1,11 @@
+### CryptomatteArnold 1.1.2 release notes: 
+
+* Removes calls to deprecated APIs and works with multiple Arnold universes. (Thanks @sebastienblor)
+
+### CryptomatteArnold 1.1.1 release notes: 
+
+* Fixed tests to work with Arnold 6 (were unnecessarily strict and were failing due to unrelated changes. 
+
 ### CryptomatteArnold 1.1 release notes: 
 
 * Preview AOVs are now always displayed in display drivers, even when preview_in_exr is disabled. 

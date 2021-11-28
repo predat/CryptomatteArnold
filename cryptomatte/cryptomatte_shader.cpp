@@ -71,6 +71,7 @@ node_finish {
 
 node_update {
     CryptomatteData* data = reinterpret_cast<CryptomatteData*>(AiNodeGetLocalData(node));
+    AtUniverse *universe = AiNodeGetUniverse(node);
 
     data->set_option_sidecar_manifests(AiNodeGetBool(node, "sidecar_manifests"));
     data->set_option_channels(AiNodeGetInt(node, "cryptomatte_depth"),
@@ -107,7 +108,7 @@ node_update {
                                     AiNodeGetStr(node, "user_crypto_src_2").c_str(),
                                     AiNodeGetStr(node, "user_crypto_src_3").c_str());
 
-    data->setup_all(AiNodeGetStr(node, "aov_crypto_asset"), AiNodeGetStr(node, "aov_crypto_object"),
+    data->setup_all(universe, AiNodeGetStr(node, "aov_crypto_asset"), AiNodeGetStr(node, "aov_crypto_object"),
                     AiNodeGetStr(node, "aov_crypto_material"), uc_aov_array, uc_src_array);
 }
 

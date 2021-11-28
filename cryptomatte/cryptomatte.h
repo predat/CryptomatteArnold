@@ -59,7 +59,10 @@ getting global
         // AOVs are active (connected to EXR drivers), this does all the
         // complicated setup work of creating multiple AOVs if necessary,
         // writing metadata, etc.
-        data->setup_all(AiNodeGetStr(node, "aov_crypto_asset"),
+        // An arnold AtUniverse must be provided, so that we can find nodes
+        // in the proper universe
+        data->setup_all(universe,
+                        AiNodeGetStr(node, "aov_crypto_asset"),
                         AiNodeGetStr(node, "aov_crypto_object"),
                         AiNodeGetStr(node, "aov_crypto_material"), uc_aov_array,
                         uc_src_array);
@@ -807,7 +810,8 @@ public:
             AiMsgError("[Cryptomatte] Critical section was not initialized. ");
     }
 
-    void setup_all(const AtString aov_cryptoasset_, const AtString aov_cryptoobject_,
+    void setup_all(AtUniverse *universe, 
+                   const AtString aov_cryptoasset_, const AtString aov_cryptoobject_,
                    const AtString aov_cryptomaterial_, AtArray* uc_aov_array,
                    AtArray* uc_src_array) {
         aov_cryptoasset = aov_cryptoasset_;
@@ -819,7 +823,7 @@ public:
         user_cryptomattes = UserCryptomattes(uc_aov_array, uc_src_array);
 
         crypto_crit_sec_enter();
-        setup_outputs();
+        setup_outputs(universe);
         crypto_crit_sec_leave();
     }
 
@@ -853,9 +857,9 @@ public:
         }
     }
 
-    void write_sidecar_manifests() {
-        write_standard_sidecar_manifests();
-        write_user_sidecar_manifests();
+    void write_sidecar_manifests(AtUniverse *universe) {
+        write_standard_sidecar_manifests(universe);
+        write_user_sidecar_manifests(universe);
     }
 
     ~CryptomatteData() { destroy_arrays(); }
@@ -966,6 +970,7 @@ private:
         String driver_tok = "";
         bool half_flag = false;
         AtNode* raw_driver = nullptr;
+        AtUniverse *universe = nullptr;
 
     private:
         AtNode* driver = nullptr;
@@ -973,9 +978,10 @@ private:
     public:
         TokenizedOutput() {}
 
-        TokenizedOutput(AtNode* raw_driver_in) { raw_driver = raw_driver_in; }
+        TokenizedOutput(AtUniverse *universe_in, AtNode* raw_driver_in) { universe = universe_in; raw_driver = raw_driver_in; }
 
-        TokenizedOutput(AtString output_string) {
+        TokenizedOutput(AtUniverse *universe_in, AtString output_string) {
+            universe = universe_in;
             char* temp_string = strdup(output_string.c_str());
             const String c0 = to_string_safe(strtok(temp_string, " "));
             const String c1 = to_string_safe(strtok(nullptr, " "));
@@ -995,7 +1001,7 @@ private:
             filter_tok = no_camera ? c2 : c3;
             driver_tok = no_camera ? c3 : c4;
 
-            driver = AiNodeLookUpByName(driver_tok.c_str());
+            driver = AiNodeLookUpByName(universe, driver_tok.c_str());
         }
 
         String rebuild_output() const {
@@ -1023,7 +1029,7 @@ private:
             if (driver && driver_tok == String(AiNodeGetName(driver)))
                 return driver;
             else if (!driver_tok.empty())
-                return AiNodeLookUpByName(driver_tok.c_str());
+                return AiNodeLookUpByName(universe, driver_tok.c_str());
             else
                 return nullptr;
         }
@@ -1033,10 +1039,10 @@ private:
         String to_string_safe(const char* c_str) const { return c_str ? c_str : ""; }
     };
 
-    void setup_outputs() {
-        const AtArray* outputs = AiNodeGetArray(AiUniverseGetOptions(), "outputs");
+    void setup_outputs(AtUniverse *universe) {
+        const AtArray* outputs = AiNodeGetArray(AiUniverseGetOptions(universe), "outputs");
         const uint32_t prev_output_num = AiArrayGetNumElements(outputs);
-        AtNode* noop_filter = option_exr_preview_channels ? nullptr : get_or_create_noop_filter();
+        AtNode* noop_filter = option_exr_preview_channels ? nullptr : get_or_create_noop_filter(universe);
 
         // if a driver is set to half, it needs to be set to full,
         // and its non-cryptomatte outputs need to be set to half.
@@ -1047,7 +1053,7 @@ private:
         std::vector<TokenizedOutput> outputs_orig(prev_output_num), outputs_new;
 
         for (uint32_t i = 0; i < prev_output_num; i++) {
-            TokenizedOutput t_output(AiArrayGetStr(outputs, i));
+            TokenizedOutput t_output(universe, AiArrayGetStr(outputs, i));
             AtNode* driver = t_output.get_driver();
 
             AtArray* crypto_aovs = nullptr;
@@ -1071,7 +1077,7 @@ private:
             }
 
             if (crypto_aovs && check_driver(driver)) {
-                setup_new_outputs(t_output, crypto_aovs, outputs_new);
+                setup_new_outputs(universe, t_output, crypto_aovs, outputs_new);
 
                 if (AiNodeGetBool(driver, "half_precision")) {
                     AiNodeSetBool(driver, "half_precision", false);
@@ -1086,8 +1092,8 @@ private:
 
         if (outputs_new.size()) {
             if (option_sidecar_manifests) {
-                AtNode* manifest_driver = setup_manifest_driver();
-                outputs_new.push_back(TokenizedOutput(manifest_driver));
+                AtNode* manifest_driver = setup_manifest_driver(universe);
+                outputs_new.push_back(TokenizedOutput(universe, manifest_driver));
             }
 
             for (auto& t_output : outputs_orig) {
@@ -1106,17 +1112,17 @@ private:
             for (auto& t_output : outputs_new)
                 AiArraySetStr(final_outputs, i++, t_output.rebuild_output().c_str());
 
-            AiNodeSetArray(AiUniverseGetOptions(), "outputs", final_outputs);
+            AiNodeSetArray(AiUniverseGetOptions(universe), "outputs", final_outputs);
         }
 
-        build_standard_metadata(driver_asset, driver_object, driver_material);
-        build_user_metadata(tmp_uc_drivers);
+        build_standard_metadata(universe, driver_asset, driver_object, driver_material);
+        build_user_metadata(universe, tmp_uc_drivers);
     }
 
-    void setup_new_outputs(TokenizedOutput& t_output, AtArray* crypto_aovs,
-                          std::vector<TokenizedOutput>& new_outputs) const {
+    void setup_new_outputs(AtUniverse *universe, TokenizedOutput& t_output, 
+                          AtArray* crypto_aovs, std::vector<TokenizedOutput>& new_outputs) const {
         // Populates crypto_aovs and new_outputs
-        AtNode* orig_filter = AiNodeLookUpByName(t_output.filter_tok.c_str());
+        AtNode* orig_filter = AiNodeLookUpByName(universe, t_output.filter_tok.c_str());
 
         // Outlaw RLE, dwaa, dwab
         AtNode* driver = t_output.get_driver();
@@ -1136,7 +1142,7 @@ private:
             AiNodeSetStr(driver, "compression", "zip");
         }
 
-        AtArray* outputs = AiNodeGetArray(AiUniverseGetOptions(), "outputs");
+        AtArray* outputs = AiNodeGetArray(AiUniverseGetOptions(universe), "outputs");
 
         std::unordered_set<String> output_set;
         for (uint32_t i = 0; i < AiArrayGetNumElements(outputs); i++)
@@ -1150,13 +1156,13 @@ private:
             const String filter_rank_name = t_output.aov_name_tok + "_filter" + rank_num;
             const String aov_rank_name = t_output.aov_name_tok + rank_num;
 
-            if (AiNodeLookUpByName(filter_rank_name.c_str()) == nullptr)
-                AtNode* filter = create_filter(orig_filter, filter_rank_name, i);
+            if (AiNodeLookUpByName(universe, filter_rank_name.c_str()) == nullptr)
+                AtNode* filter = create_filter(universe, orig_filter, filter_rank_name, i);
 
             TokenizedOutput new_t_output = t_output;
             new_t_output.aov_name_tok = aov_rank_name;
             new_t_output.aov_type_tok = "FLOAT";
-            new_t_output.filter_tok = "lentil_replaced_filter";
+            new_t_output.filter_tok = filter_rank_name;
             new_t_output.half_flag = false;
 
             String new_output_str = new_t_output.rebuild_output();
@@ -1170,7 +1176,7 @@ private:
         }
     }
 
-    AtNode* create_filter(const AtNode* orig_filter, const String filter_name, int aovindex) const {
+    AtNode* create_filter(AtUniverse *universe, const AtNode* orig_filter, const String filter_name, int aovindex) const {
         const AtNodeEntry* filter_nentry = AiNodeGetNodeEntry(orig_filter);
         const auto width = AiNodeEntryLookUpParameter(filter_nentry, "width")
                                ? AiNodeGetFlt(orig_filter, "width")
@@ -1178,18 +1184,18 @@ private:
         const String filter_type = AiNodeEntryGetName(filter_nentry);
         const String filter_param = filter_type.substr(0, filter_type.find("_filter"));
 
-        AtNode* filter = AiNodeLookUpByName("lentil_replaced_filter");
-        // AiNodeSetStr(filter, "filter", filter_param.c_str());
-        // AiNodeSetInt(filter, "rank", aovindex * 2);
-        // AiNodeSetFlt(filter, "width", width);
+        AtNode* filter = AiNode(universe, "cryptomatte_filter", filter_name.c_str(), nullptr);
+        AiNodeSetStr(filter, "filter", filter_param.c_str());
+        AiNodeSetInt(filter, "rank", aovindex * 2);
+        AiNodeSetFlt(filter, "width", width);
         return filter;
     }
 
-    AtNode* get_or_create_noop_filter() const {
+    AtNode* get_or_create_noop_filter(AtUniverse *universe) const {
         const static AtString noop_filter_name("cryptomatte_noop_filter");
-        AtNode* filter = AiNodeLookUpByName(noop_filter_name);
+        AtNode* filter = AiNodeLookUpByName(universe, noop_filter_name);
         if (!filter) {
-            filter = AiNode("cryptomatte_filter", noop_filter_name, nullptr);
+            filter = AiNode(universe, "cryptomatte_filter", noop_filter_name, nullptr);
             AiNodeSetBool(filter, "noop", true);
         }
         return filter;
@@ -1203,11 +1209,11 @@ private:
         return aovs;
     }
 
-    AtNode* setup_manifest_driver() {
+    AtNode* setup_manifest_driver(AtUniverse *universe) {
         AtString manifest_driver_name("cryptomatte_manifest_driver");
-        AtNode* manifest_driver = AiNodeLookUpByName(manifest_driver_name);
+        AtNode* manifest_driver = AiNodeLookUpByName(universe, manifest_driver_name);
         if (!manifest_driver)
-            manifest_driver = AiNode("cryptomatte_manifest_driver", manifest_driver_name, nullptr);
+            manifest_driver = AiNode(universe, "cryptomatte_manifest_driver", manifest_driver_name, nullptr);
         AiNodeSetLocalData(manifest_driver, this);
         return manifest_driver;
     }
@@ -1235,7 +1241,7 @@ private:
         }
     }
 
-    void write_standard_sidecar_manifests() {
+    void write_standard_sidecar_manifests(AtUniverse *universe) {
         const bool do_md_asset = manif_asset_paths.size() > 0;
         const bool do_md_object = manif_object_paths.size() > 0;
         const bool do_md_material = manif_material_paths.size() > 0;
@@ -1244,7 +1250,7 @@ private:
             return;
 
         ManifestMap map_md_asset, map_md_object, map_md_material;
-        compile_standard_manifests(do_md_asset, do_md_object, do_md_material, map_md_asset,
+        compile_standard_manifests(universe, do_md_asset, do_md_object, do_md_material, map_md_asset,
                                    map_md_object, map_md_material);
 
         if (do_md_asset)
@@ -1260,10 +1266,10 @@ private:
         manif_material_paths = StringVector();
     }
 
-    void compile_standard_manifests(bool do_md_asset, bool do_md_object, bool do_md_material,
-                                    ManifestMap& map_md_asset, ManifestMap& map_md_object,
-                                    ManifestMap& map_md_material) {
-        AtNodeIterator* shape_iterator = AiUniverseGetNodeIterator(AI_NODE_SHAPE);
+    void compile_standard_manifests(AtUniverse *universe, bool do_md_asset, bool do_md_object, 
+                                    bool do_md_material, ManifestMap& map_md_asset, 
+                                    ManifestMap& map_md_object, ManifestMap& map_md_material) {
+        AtNodeIterator* shape_iterator = AiUniverseGetNodeIterator(universe, AI_NODE_SHAPE);
         while (!AiNodeIteratorFinished(shape_iterator)) {
             AtNode* node = AiNodeIteratorGetNext(shape_iterator);
             if (!node || AiNodeIsDisabled(node))
@@ -1304,7 +1310,7 @@ private:
         AiNodeIteratorDestroy(shape_iterator);
     }
 
-    void write_user_sidecar_manifests() {
+    void write_user_sidecar_manifests(AtUniverse *universe) {
         std::vector<bool> do_metadata;
         do_metadata.resize(user_cryptomattes.count);
         std::vector<ManifestMap> manf_maps;
@@ -1315,7 +1321,7 @@ private:
             for (size_t j = 0; j < manifs_user_paths[i].size(); j++)
                 do_metadata[i] = do_metadata[i] && manifs_user_paths[i][j].length() > 0;
         }
-        compile_user_manifests(do_metadata, manf_maps);
+        compile_user_manifests(universe, do_metadata, manf_maps);
 
         for (size_t i = 0; i < manifs_user_paths.size(); i++)
             if (do_metadata[i])
@@ -1324,11 +1330,11 @@ private:
         manifs_user_paths = std::vector<StringVector>();
     }
 
-    void compile_user_manifests(std::vector<bool>& do_metadata,
+    void compile_user_manifests(AtUniverse *universe, std::vector<bool>& do_metadata,
                                 std::vector<ManifestMap>& manf_maps) {
         if (user_cryptomattes.count == 0)
             return;
-        AtNodeIterator* shape_iterator = AiUniverseGetNodeIterator(AI_NODE_SHAPE);
+        AtNodeIterator* shape_iterator = AiUniverseGetNodeIterator(universe, AI_NODE_SHAPE);
         while (!AiNodeIteratorFinished(shape_iterator)) {
             AtNode* node = AiNodeIteratorGetNext(shape_iterator);
             if (!node || AiNodeIsDisabled(node))
@@ -1342,7 +1348,8 @@ private:
         AiNodeIteratorDestroy(shape_iterator);
     }
 
-    void build_standard_metadata(const std::vector<AtNode*>& driver_asset,
+    void build_standard_metadata(AtUniverse *universe, 
+                                 const std::vector<AtNode*>& driver_asset,
                                  const std::vector<AtNode*>& driver_object,
                                  const std::vector<AtNode*>& driver_material) {
         clock_t metadata_start_time = clock();
@@ -1357,8 +1364,8 @@ private:
         ManifestMap map_md_asset, map_md_object, map_md_material;
 
         if (!option_sidecar_manifests)
-            compile_standard_manifests(do_md_asset, do_md_object, do_md_material, map_md_asset,
-                                       map_md_object, map_md_material);
+            compile_standard_manifests(universe, do_md_asset, do_md_object, do_md_material, 
+                                       map_md_asset, map_md_object, map_md_material);
 
         String manif_asset_m, manif_object_m, manif_material_m;
         manif_asset_paths.resize(driver_asset.size());
@@ -1390,7 +1397,7 @@ private:
                       "written at end of render.");
     }
 
-    void build_user_metadata(const std::vector<std::vector<AtNode*>>& drivers_vv) {
+    void build_user_metadata(AtUniverse *universe, const std::vector<std::vector<AtNode*>>& drivers_vv) {
         std::vector<StringVector> manifs_user_m;
         manifs_user_paths = std::vector<StringVector>();
         manifs_user_m.resize(drivers_vv.size());
@@ -1429,7 +1436,7 @@ private:
             return;
 
         if (!sidecar)
-            compile_user_manifests(do_metadata, manf_maps);
+            compile_user_manifests(universe, do_metadata, manf_maps);
 
         for (uint32_t i = 0; i < drivers_vv.size(); i++) {
             if (!do_metadata[i])

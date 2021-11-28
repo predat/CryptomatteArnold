@@ -32,7 +32,7 @@ driver_write_bucket {}
 driver_close {
     CryptomatteData* data = (CryptomatteData*)AiNodeGetLocalData(node);
     if (data)
-        data->write_sidecar_manifests();
+        data->write_sidecar_manifests(AiNodeGetUniverse(node));
 }
 
 node_finish {}

@@ -364,7 +364,7 @@ class Cryptomatte000(CryptomatteTestBase):
         5.0.1.0 for 5.0.* and 5.1.*, and building against 
         5.2.0.0 for 5.2.*. 
         """
-        legal_versions = ['5.0.1.0', '5.2.0.0']
+        legal_versions = ['5.0.1.0', '5.2.0.0', '6.0.0.0', '6.1.0.0', '6.2.0.0']
         legal_phrases = ['cryptomatte uses Arnold %s' % x for x in legal_versions]
         with open(self.result_log) as f:
             log_contents = f.read()
@@ -472,9 +472,6 @@ class Cryptomatte010(CryptomatteTestBase):
 
     def test_cryptomatte_pixels(self):
         self.assertCryptomattePixelsMatch()
-
-    def test_non_cryptomatte_pixels(self):
-        self.assertNonCryptomattePixelsMatch()
 
 
 class Cryptomatte020(CryptomatteTestBase):
