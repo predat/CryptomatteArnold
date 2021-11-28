@@ -1162,7 +1162,8 @@ private:
             TokenizedOutput new_t_output = t_output;
             new_t_output.aov_name_tok = aov_rank_name;
             new_t_output.aov_type_tok = "FLOAT";
-            new_t_output.filter_tok = filter_rank_name;
+            // new_t_output.filter_tok = filter_rank_name;
+            new_t_output.filter_tok = "lentil_replaced_filter";
             new_t_output.half_flag = false;
 
             String new_output_str = new_t_output.rebuild_output();
@@ -1184,10 +1185,12 @@ private:
         const String filter_type = AiNodeEntryGetName(filter_nentry);
         const String filter_param = filter_type.substr(0, filter_type.find("_filter"));
 
-        AtNode* filter = AiNode(universe, "cryptomatte_filter", filter_name.c_str(), nullptr);
-        AiNodeSetStr(filter, "filter", filter_param.c_str());
-        AiNodeSetInt(filter, "rank", aovindex * 2);
-        AiNodeSetFlt(filter, "width", width);
+        // AtNode* filter = AiNode(universe, "cryptomatte_filter", filter_name.c_str(), nullptr);
+        // AiNodeSetStr(filter, "filter", filter_param.c_str());
+        // AiNodeSetInt(filter, "rank", aovindex * 2);
+        // AiNodeSetFlt(filter, "width", width);
+        AtNode* filter = AiNodeLookUpByName(universe, "lentil_replaced_filter");
+        
         return filter;
     }
 
