@@ -1114,12 +1114,13 @@ private:
             }
 
             const auto nb_outputs = outputs_orig.size() + outputs_new.size();
-            AtArray* final_outputs = AiArrayAllocate((uint32_t)nb_outputs, 1, AI_TYPE_STRING);
+            AtArray* final_outputs = AiArrayAllocate((uint32_t)nb_outputs+1, 1, AI_TYPE_STRING);
             uint32_t i = 0;
             for (auto& t_output : outputs_orig)
                 AiArraySetStr(final_outputs, i++, t_output.rebuild_output().c_str());
             for (auto& t_output : outputs_new)
                 AiArraySetStr(final_outputs, i++, t_output.rebuild_output().c_str());
+            AiArraySetStr(final_outputs, i++, "lentil_time FLOAT lentil_replaced_filter /out/arnold1:exr:cam1");
             AiNodeSetArray(AiUniverseGetOptions(universe), "outputs", final_outputs);
         }
 
