@@ -60,6 +60,7 @@ node_plugin_cleanup { crypto_crit_sec_close(); }
 
 node_initialize {
     CryptomatteData* data = new CryptomatteData();
+    AiMsgInfo("doing something");
     run_all_unit_tests(node);
     AiNodeSetLocalData(node, data);
 }
