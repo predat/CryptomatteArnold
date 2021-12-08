@@ -197,74 +197,74 @@ inline void crypto_crit_sec_leave() {
 
 
 
-inline std::vector<std::string> split_str(std::string str, std::string token)
-{
-    std::vector<std::string>result;
-    while(str.size())
-    {
-        size_t index = static_cast<size_t>(str.find(token));
+// inline std::vector<std::string> split_str(std::string str, std::string token)
+// {
+//     std::vector<std::string>result;
+//     while(str.size())
+//     {
+//         size_t index = static_cast<size_t>(str.find(token));
         
-        if(index != std::string::npos)
-        {
-            result.push_back(str.substr(0, index));
-            str = str.substr(index+token.size());
+//         if(index != std::string::npos)
+//         {
+//             result.push_back(str.substr(0, index));
+//             str = str.substr(index+token.size());
             
-            if(str.size() == 0)
-                result.push_back(str);
-        }
-        else
-        {
-            result.push_back(str);
-            str = "";
-        }
-    }
-    return result;
-}
+//             if(str.size() == 0)
+//                 result.push_back(str);
+//         }
+//         else
+//         {
+//             result.push_back(str);
+//             str = "";
+//         }
+//     }
+//     return result;
+// }
 
-// using c++17 functionality here to return multiple values
-inline auto find_filter_index_in_aov_string (std::string output_string, AtUniverse *uni) {
+// // using c++17 functionality here to return multiple values
+// inline auto find_filter_index_in_aov_string (std::string output_string, AtUniverse *uni) {
   
-  struct returnValues {
-    int filter_index;
-    std::vector<std::string> output_string_split;
-  };
+//   struct returnValues {
+//     int filter_index;
+//     std::vector<std::string> output_string_split;
+//   };
 
-  // first find which element is the filter (if *filter* in type_name)
-  // then assuming that aov type comes before the filter, and the aov name comes before the type
-  // should avoid cases where the camera name is placed in front of the output string
-  int filter_index = 0;
-  std::vector<std::string> output_string_split = split_str(output_string, std::string(" "));
-  for (int s=0; s<output_string_split.size(); s++) {
+//   // first find which element is the filter (if *filter* in type_name)
+//   // then assuming that aov type comes before the filter, and the aov name comes before the type
+//   // should avoid cases where the camera name is placed in front of the output string
+//   int filter_index = 0;
+//   std::vector<std::string> output_string_split = split_str(output_string, std::string(" "));
+//   for (int s=0; s<output_string_split.size(); s++) {
 
-    AtString substring_as = AtString(output_string_split[s].c_str());
-    AtNode *substring_node = AiNodeLookUpByName(uni, substring_as);
+//     AtString substring_as = AtString(output_string_split[s].c_str());
+//     AtNode *substring_node = AiNodeLookUpByName(uni, substring_as);
     
-    if (substring_node == nullptr) continue;
+//     if (substring_node == nullptr) continue;
 
-    const AtNodeEntry *substring_ne = AiNodeGetNodeEntry(substring_node);
-    std::string substring_ne_name = AiNodeEntryGetNameAtString(substring_ne).c_str();
+//     const AtNodeEntry *substring_ne = AiNodeGetNodeEntry(substring_node);
+//     std::string substring_ne_name = AiNodeEntryGetNameAtString(substring_ne).c_str();
 
-    if (substring_ne_name.find("filter") != std::string::npos) {
-        filter_index = s;
-    }
-  }
+//     if (substring_ne_name.find("filter") != std::string::npos) {
+//         filter_index = s;
+//     }
+//   }
 
-  // filter index can never be 0
-  if (filter_index == 0) AiMsgError("[LENTIL] Can't find a filter to replace in AOV string: %s", output_string.c_str());
+//   // filter index can never be 0
+//   if (filter_index == 0) AiMsgError("[LENTIL] Can't find a filter to replace in AOV string: %s", output_string.c_str());
 
-  return returnValues {filter_index, output_string_split};
-}
+//   return returnValues {filter_index, output_string_split};
+// }
 
 
 
-inline unsigned int string_to_arnold_type(std::string str){
-  if (str == "float" || str == "FLOAT" || str == "flt" || str == "FLT") return AI_TYPE_FLOAT;
-  else if (str == "rgba" || str == "RGBA") return AI_TYPE_RGBA;
-  else if (str == "rgb" || str == "RGB") return AI_TYPE_RGB;
-  else if (str == "vector" || str == "vec" || str == "VECTOR" || str == "VEC") return AI_TYPE_VECTOR;
+// inline unsigned int string_to_arnold_type(std::string str){
+//   if (str == "float" || str == "FLOAT" || str == "flt" || str == "FLT") return AI_TYPE_FLOAT;
+//   else if (str == "rgba" || str == "RGBA") return AI_TYPE_RGBA;
+//   else if (str == "rgb" || str == "RGB") return AI_TYPE_RGB;
+//   else if (str == "vector" || str == "vec" || str == "VECTOR" || str == "VEC") return AI_TYPE_VECTOR;
 
-  return 0;
-}
+//   return 0;
+// }
 
 
 ///////////////////////////////////////////////
@@ -876,6 +876,7 @@ struct CryptomatteData {
     std::vector<StringVector> manifs_user_paths;
 
     bool lentil;
+    bool is_setup_completed;
 
 public:
     CryptomatteData() {
@@ -894,20 +895,23 @@ public:
         aov_cryptoobject = aov_cryptoobject_;
         aov_cryptomaterial = aov_cryptomaterial_;
         
-        lentil = false;
-        AtNode *camera_node = AiUniverseGetCamera(universe);
-        const AtNodeEntry *nentry = AiNodeGetNodeEntry(camera_node);
-        AtString camera_node_type = AtString(AiNodeEntryGetName(nentry));
-        if (camera_node_type == AtString("lentil_camera")) lentil = true;
+        // lentil = false;
+        // is_setup_completed = false;
+        // AtNode *camera_node = AiUniverseGetCamera(universe);
+        // const AtNodeEntry *nentry = AiNodeGetNodeEntry(camera_node);
+        // AtString camera_node_type = AtString(AiNodeEntryGetName(nentry));
+        // if (camera_node_type == AtString("lentil_camera")) lentil = true;
 
         destroy_arrays();
 
         user_cryptomattes = UserCryptomattes(uc_aov_array, uc_src_array);
 
         crypto_crit_sec_enter();
-        if (lentil) setup_outputs_lentil(universe);
+        // if (lentil) setup_outputs_lentil(universe);
         setup_outputs(universe);
         crypto_crit_sec_leave();
+
+        is_setup_completed = true;
     }
 
     void set_option_channels(int depth, bool exr_preview_channels) {
@@ -1137,7 +1141,6 @@ private:
 
         for (uint32_t i = 0; i < prev_output_num; i++) {
             TokenizedOutput t_output(universe, AiArrayGetStr(outputs, i));
-            AiMsgInfo("TEST TEST: %s", AiArrayGetStr(outputs,i).c_str());
             AtNode* driver = t_output.get_driver();
 
             AtArray* crypto_aovs = nullptr;
@@ -1208,93 +1211,83 @@ private:
     // if cryptomatte is present, this runs. if no cryptomatte is present, the setup code on the camera shader runs.
     // this is to get around an arnold bug in 7.0.0.0 where the operators don't set the AOVs correctly (ARNOLD-11778)
     void setup_outputs_lentil(AtUniverse *universe) {
-        bool lentil_filter_found = false;
-        AtNode *filternode = nullptr;
-        if (AiNodeEntryGetCount(AiNodeEntryLookUp("lentil_filter")) == 0){
-            filternode = AiNode(universe, "lentil_filter", AtString("lentil_replaced_filter"));
-        } else {
-            lentil_filter_found = true;
-        }
+        
+        
+        // AiMsgInfo("running setup_outputs_lentil");
+        // bool lentil_filter_found = false;
+        // // if (AiNodeEntryGetCount(AiNodeEntryLookUp("lentil_filter")) == 0){
+        // if (AiNodeLookUpByName(universe, "lentil_filter") == nullptr){
+        //     AtNode *filternode = AiNode(universe, "lentil_filter", AtString("lentil_replaced_filter"));
+        // } else {
+        //     lentil_filter_found = true;
+        // }
 
-        const AtArray* outputs = AiNodeGetArray(AiUniverseGetOptions(universe), "outputs");
-        std::vector<std::string> output_strings;
-        bool lentil_time_found = false;
 
-        const int elements = AiArrayGetNumElements(outputs);
-        for (int i=0; i<elements; i++) {
+        // const AtArray* outputs = AiNodeGetArray(AiUniverseGetOptions(universe), "outputs");
+        // const uint32_t prev_output_num = AiArrayGetNumElements(outputs);
+        // std::vector<TokenizedOutput> outputs_orig(prev_output_num), outputs_new;
+        
+        // for (uint32_t i = 0; i < prev_output_num; i++) {
+        //     TokenizedOutput t_output(universe, AiArrayGetStr(outputs, i));
             
-            std::string output_string = AiArrayGetStr(outputs, i).c_str();
             
-            auto [filter_index, output_string_split] = find_filter_index_in_aov_string(output_string, universe);
-            std::string filter = output_string_split[filter_index];
-            std::string type = output_string_split[filter_index-1];
-            std::string name = output_string_split[filter_index-2];
+        //     if (t_output.aov_type_tok != "RGBA" && 
+        //         t_output.aov_type_tok != "RGB" && 
+        //         t_output.aov_type_tok != "FLOAT" && 
+        //         t_output.aov_type_tok != "VECTOR") {
+        //         outputs_orig[i] = t_output;
+        //         continue;
+        //     }
 
-            if (name == "lentil_time"){
-                lentil_time_found = true;
-                output_strings.push_back(output_string);
-                continue;
-            }
+        //     if (t_output.aov_name_tok.find("crypto_") != std::string::npos){
+        //         outputs_orig[i] = t_output;
+        //         continue;
+        //     }
 
-            // lentil unsupported
-            if (type != "RGBA" && type != "RGB" && type != "FLOAT" && type != "VECTOR") {
-                output_strings.push_back(output_string);
-                continue;
-            }
-
-            if (name.find("crypto_") != std::string::npos){
-                output_strings.push_back(output_string);
-                continue;
-            }
             
-            if (filter != "lentil_replaced_filter") {
-                output_string.replace(output_string.find(filter), filter.length(), AiNodeGetStr(filternode, "name"));        
-            }
-            
-            output_strings.push_back(output_string);
-        }
+        //     t_output.filter_tok = "lentil_replaced_filter";
+        //     outputs_orig[i] = t_output;
+
+        // }
+
+        // // TokenizedOutput t_output(universe, AiArrayGetStr(outputs, 0));
+        // // t_output.aov_name_tok == "lentil_time";
+        // // t_output.aov_type_tok = "FLOAT";
+        // // t_output.filter_tok = "lentil_replaced_filter";
+        // // outputs_new.push_back(t_output);
         
 
-        if (!lentil_time_found) {
-            std::string tmp_first_aov = output_strings[0];
-            auto [filter_index, output_string_split] = find_filter_index_in_aov_string(tmp_first_aov, universe);
-            std::string type = output_string_split[filter_index-1];
-            std::string name = output_string_split[filter_index-2];
-            tmp_first_aov.replace(tmp_first_aov.find(name), name.length(), "lentil_time");
-            tmp_first_aov.replace(tmp_first_aov.find(type), type.length(), "FLOAT");
-            output_strings.push_back(tmp_first_aov);
-        }
-    
-        AtArray *final_outputs = AiArrayAllocate(output_strings.size(), 1, AI_TYPE_STRING);
-        uint32_t i = 0;
-        for (auto &output : output_strings){
-            AiArraySetStr(final_outputs, i++, output.c_str());
-            auto [filter_index, output_string_split] = find_filter_index_in_aov_string(output, universe);
-            std::string type = output_string_split[filter_index-1];
-            AiAOVRegister(output.c_str(), string_to_arnold_type(type), AI_AOV_BLEND_NONE); // watch out for type here!!
-        }
-        AiNodeSetArray(AiUniverseGetOptions(universe), "outputs", final_outputs);
+        // const auto nb_outputs = outputs_orig.size() + outputs_new.size();
+        // AtArray* final_outputs = AiArrayAllocate((uint32_t)nb_outputs, 1, AI_TYPE_STRING);
+        // uint32_t i = 0;
+        // for (auto& t_output : outputs_orig)
+        //     AiArraySetStr(final_outputs, i++, t_output.rebuild_output().c_str());
+        // for (auto& t_output : outputs_new)
+        //     AiArraySetStr(final_outputs, i++, t_output.rebuild_output().c_str());
+        // AiNodeSetArray(AiUniverseGetOptions(universe), "outputs", final_outputs);
 
 
 
-        // need to add an entry to the aov_shaders (NODE)
-        AtArray* aov_shaders_array = AiNodeGetArray(AiUniverseGetOptions(universe), "aov_shaders");
-        int aov_shader_array_size = AiArrayGetNumElements(aov_shaders_array);
 
-        if (!lentil_filter_found){
-            AtNode *time_write = AiNode(universe, "aov_write_float", AtString("lentil_time_write"));
-            AtNode *time_read = AiNode(universe, "state_float", AtString("lentil_time_read"));
+        // // need to add an entry to the aov_shaders (NODE)
+        // AtArray* aov_shaders_array = AiNodeGetArray(AiUniverseGetOptions(universe), "aov_shaders");
+        // int aov_shader_array_size = AiArrayGetNumElements(aov_shaders_array);
 
-            // set time node params/linking
-            AiNodeSetStr(time_read, AtString("variable"), AtString("time"));
-            AiNodeSetStr(time_write, AtString("aov_name"), AtString("lentil_time"));
-            AiNodeLink(time_read, "aov_input", time_write);
+        // if (!lentil_filter_found){
+        //     AtNode *time_write = AiNode(universe, "aov_write_float", AtString("lentil_time_write"));
+        //     AtNode *time_read = AiNode(universe, "state_float", AtString("lentil_time_read"));
 
-            AiArrayResize(aov_shaders_array, aov_shader_array_size+1, 1);
-            AiArraySetPtr(aov_shaders_array, aov_shader_array_size, (void*)time_write);
-            AiNodeSetArray(AiUniverseGetOptions(universe), "aov_shaders", aov_shaders_array);
-        }
+        //     // set time node params/linking
+        //     AiNodeSetStr(time_read, AtString("variable"), AtString("time"));
+        //     AiNodeSetStr(time_write, AtString("aov_name"), AtString("lentil_time"));
+        //     AiNodeLink(time_read, "aov_input", time_write);
 
+        //     AiArrayResize(aov_shaders_array, aov_shader_array_size+1, 1);
+        //     AiArraySetPtr(aov_shaders_array, aov_shader_array_size, (void*)time_write);
+        //     AiNodeSetArray(AiUniverseGetOptions(universe), "aov_shaders", aov_shaders_array);
+        // }
+
+        // AiMsgInfo("ending setup_lentil");
     }
 
     void setup_new_outputs(AtUniverse *universe, TokenizedOutput& t_output, 
@@ -1340,7 +1333,7 @@ private:
             TokenizedOutput new_t_output = t_output;
             new_t_output.aov_name_tok = aov_rank_name;
             new_t_output.aov_type_tok = "FLOAT";
-            new_t_output.filter_tok = (lentil) ? "lentil_replaced_filter" : filter_rank_name;
+            new_t_output.filter_tok = filter_rank_name;
             new_t_output.half_flag = false;
 
             String new_output_str = new_t_output.rebuild_output();
@@ -1363,14 +1356,15 @@ private:
         const String filter_param = filter_type.substr(0, filter_type.find("_filter"));
         
         AtNode* filter = nullptr;
-        if (!lentil) {
+        // if (!lentil) {
             filter = AiNode(universe, "cryptomatte_filter", filter_name.c_str(), nullptr);
             AiNodeSetStr(filter, "filter", filter_param.c_str());
             AiNodeSetInt(filter, "rank", aovindex * 2);
             AiNodeSetFlt(filter, "width", width);
-        } else {
-            filter = AiNodeLookUpByName(universe, "lentil_replaced_filter");
-        }
+        // } else {
+        //     filter = AiNodeLookUpByName(universe, "lentil_replaced_filter");
+        //     if (!filter) filter = AiNode(universe, "lentil_filter", AtString("lentil_replaced_filter"));
+        // }
         
         
         return filter;
