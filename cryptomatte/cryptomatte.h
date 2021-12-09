@@ -875,7 +875,6 @@ struct CryptomatteData {
     // Nested vector of paths for each user cryptomatte.
     std::vector<StringVector> manifs_user_paths;
 
-    bool lentil;
     bool is_setup_completed;
 
 public:
@@ -894,20 +893,12 @@ public:
         aov_cryptoasset = aov_cryptoasset_;
         aov_cryptoobject = aov_cryptoobject_;
         aov_cryptomaterial = aov_cryptomaterial_;
-        
-        // lentil = false;
-        // is_setup_completed = false;
-        // AtNode *camera_node = AiUniverseGetCamera(universe);
-        // const AtNodeEntry *nentry = AiNodeGetNodeEntry(camera_node);
-        // AtString camera_node_type = AtString(AiNodeEntryGetName(nentry));
-        // if (camera_node_type == AtString("lentil_camera")) lentil = true;
 
         destroy_arrays();
 
         user_cryptomattes = UserCryptomattes(uc_aov_array, uc_src_array);
 
         crypto_crit_sec_enter();
-        // if (lentil) setup_outputs_lentil(universe);
         setup_outputs(universe);
         crypto_crit_sec_leave();
 
@@ -1206,90 +1197,6 @@ private:
     }
 
 
-    // ZENO: i had to do something ugly here..
-    // this setup code lives both on the camera shader and the cryptomatte shader
-    // if cryptomatte is present, this runs. if no cryptomatte is present, the setup code on the camera shader runs.
-    // this is to get around an arnold bug in 7.0.0.0 where the operators don't set the AOVs correctly (ARNOLD-11778)
-    void setup_outputs_lentil(AtUniverse *universe) {
-        
-        
-        // AiMsgInfo("running setup_outputs_lentil");
-        // bool lentil_filter_found = false;
-        // // if (AiNodeEntryGetCount(AiNodeEntryLookUp("lentil_filter")) == 0){
-        // if (AiNodeLookUpByName(universe, "lentil_filter") == nullptr){
-        //     AtNode *filternode = AiNode(universe, "lentil_filter", AtString("lentil_replaced_filter"));
-        // } else {
-        //     lentil_filter_found = true;
-        // }
-
-
-        // const AtArray* outputs = AiNodeGetArray(AiUniverseGetOptions(universe), "outputs");
-        // const uint32_t prev_output_num = AiArrayGetNumElements(outputs);
-        // std::vector<TokenizedOutput> outputs_orig(prev_output_num), outputs_new;
-        
-        // for (uint32_t i = 0; i < prev_output_num; i++) {
-        //     TokenizedOutput t_output(universe, AiArrayGetStr(outputs, i));
-            
-            
-        //     if (t_output.aov_type_tok != "RGBA" && 
-        //         t_output.aov_type_tok != "RGB" && 
-        //         t_output.aov_type_tok != "FLOAT" && 
-        //         t_output.aov_type_tok != "VECTOR") {
-        //         outputs_orig[i] = t_output;
-        //         continue;
-        //     }
-
-        //     if (t_output.aov_name_tok.find("crypto_") != std::string::npos){
-        //         outputs_orig[i] = t_output;
-        //         continue;
-        //     }
-
-            
-        //     t_output.filter_tok = "lentil_replaced_filter";
-        //     outputs_orig[i] = t_output;
-
-        // }
-
-        // // TokenizedOutput t_output(universe, AiArrayGetStr(outputs, 0));
-        // // t_output.aov_name_tok == "lentil_time";
-        // // t_output.aov_type_tok = "FLOAT";
-        // // t_output.filter_tok = "lentil_replaced_filter";
-        // // outputs_new.push_back(t_output);
-        
-
-        // const auto nb_outputs = outputs_orig.size() + outputs_new.size();
-        // AtArray* final_outputs = AiArrayAllocate((uint32_t)nb_outputs, 1, AI_TYPE_STRING);
-        // uint32_t i = 0;
-        // for (auto& t_output : outputs_orig)
-        //     AiArraySetStr(final_outputs, i++, t_output.rebuild_output().c_str());
-        // for (auto& t_output : outputs_new)
-        //     AiArraySetStr(final_outputs, i++, t_output.rebuild_output().c_str());
-        // AiNodeSetArray(AiUniverseGetOptions(universe), "outputs", final_outputs);
-
-
-
-
-        // // need to add an entry to the aov_shaders (NODE)
-        // AtArray* aov_shaders_array = AiNodeGetArray(AiUniverseGetOptions(universe), "aov_shaders");
-        // int aov_shader_array_size = AiArrayGetNumElements(aov_shaders_array);
-
-        // if (!lentil_filter_found){
-        //     AtNode *time_write = AiNode(universe, "aov_write_float", AtString("lentil_time_write"));
-        //     AtNode *time_read = AiNode(universe, "state_float", AtString("lentil_time_read"));
-
-        //     // set time node params/linking
-        //     AiNodeSetStr(time_read, AtString("variable"), AtString("time"));
-        //     AiNodeSetStr(time_write, AtString("aov_name"), AtString("lentil_time"));
-        //     AiNodeLink(time_read, "aov_input", time_write);
-
-        //     AiArrayResize(aov_shaders_array, aov_shader_array_size+1, 1);
-        //     AiArraySetPtr(aov_shaders_array, aov_shader_array_size, (void*)time_write);
-        //     AiNodeSetArray(AiUniverseGetOptions(universe), "aov_shaders", aov_shaders_array);
-        // }
-
-        // AiMsgInfo("ending setup_lentil");
-    }
-
     void setup_new_outputs(AtUniverse *universe, TokenizedOutput& t_output, 
                           AtArray* crypto_aovs, std::vector<TokenizedOutput>& new_outputs) const {
         // Populates crypto_aovs and new_outputs
@@ -1355,17 +1262,10 @@ private:
         const String filter_type = AiNodeEntryGetName(filter_nentry);
         const String filter_param = filter_type.substr(0, filter_type.find("_filter"));
         
-        AtNode* filter = nullptr;
-        // if (!lentil) {
-            filter = AiNode(universe, "cryptomatte_filter", filter_name.c_str(), nullptr);
-            AiNodeSetStr(filter, "filter", filter_param.c_str());
-            AiNodeSetInt(filter, "rank", aovindex * 2);
-            AiNodeSetFlt(filter, "width", width);
-        // } else {
-        //     filter = AiNodeLookUpByName(universe, "lentil_replaced_filter");
-        //     if (!filter) filter = AiNode(universe, "lentil_filter", AtString("lentil_replaced_filter"));
-        // }
-        
+        AtNode* filter = AiNode(universe, "cryptomatte_filter", filter_name.c_str(), nullptr);
+        AiNodeSetStr(filter, "filter", filter_param.c_str());
+        AiNodeSetInt(filter, "rank", aovindex * 2);
+        AiNodeSetFlt(filter, "width", width);
         
         return filter;
     }
