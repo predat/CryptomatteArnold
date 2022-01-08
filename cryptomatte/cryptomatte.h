@@ -100,6 +100,7 @@ getting global
 #include <unordered_set>
 #include <vector>
 
+
 #define NOMINMAX // lets you keep using std::min on windows
 
 using String = std::string;
@@ -805,6 +806,7 @@ struct CryptomatteData {
     // Nested vector of paths for each user cryptomatte.
     std::vector<StringVector> manifs_user_paths;
 
+    bool started = false;
     bool is_setup_completed;
 
 public:
@@ -820,6 +822,9 @@ public:
                    const AtString aov_cryptoasset_, const AtString aov_cryptoobject_,
                    const AtString aov_cryptomaterial_, AtArray* uc_aov_array,
                    AtArray* uc_src_array) {
+        
+        started = true;
+
         aov_cryptoasset = aov_cryptoasset_;
         aov_cryptoobject = aov_cryptoobject_;
         aov_cryptomaterial = aov_cryptomaterial_;
@@ -834,7 +839,7 @@ public:
 
         is_setup_completed = true;
     }
-
+ 
     void set_option_channels(int depth, bool exr_preview_channels) {
         depth = std::min(std::max(depth, 1), MAX_CRYPTOMATTE_DEPTH);
         option_depth = depth;
