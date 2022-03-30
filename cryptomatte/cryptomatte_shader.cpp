@@ -13,7 +13,7 @@ void setup_outputs_lentil(AtUniverse *universe) {
     if (AiNodeEntryGetNameAtString(AiNodeGetNodeEntry(camera_node)) == AtString("lentil_camera")) {
         Camera* camera_data = reinterpret_cast<Camera*>(AiNodeGetLocalData(camera_node));
         
-        if (camera_data->crypto_in_same_queue) { // lentil node has been executed already and has been waiting 1sec in a deadlock
+        if (camera_data->crypto_in_same_queue) { // lentil node has been executed already and has been waiting 5sec in a deadlock
             AiMsgWarning("Lentil setup was done inside of cryptomatte shader to avoid deadlock.");
             camera_data->setup_aovs(universe);
             camera_data->setup_filter(universe);
