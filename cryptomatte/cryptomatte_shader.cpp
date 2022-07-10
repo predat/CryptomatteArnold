@@ -4,24 +4,6 @@
 #include <cstring>
 #include <string>
 
-
-// mechanism to setup the lentil AOVs AFTER cryptomatte has done it's thing, in the scenario that lentil
-// is first in the node_update queue. 
-#include "../pota/src/lentil.h"
-void setup_outputs_lentil(AtUniverse *universe) {
-    AtNode *camera_node = AiUniverseGetCamera(universe);
-    if (AiNodeEntryGetNameAtString(AiNodeGetNodeEntry(camera_node)) == AtString("lentil_camera")) {
-        Camera* camera_data = reinterpret_cast<Camera*>(AiNodeGetLocalData(camera_node));
-        
-        if (camera_data->crypto_in_same_queue) { // lentil node has been executed already and has been waiting 5sec in a deadlock
-            AiMsgWarning("Lentil setup was done inside of cryptomatte shader to avoid deadlock.");
-            camera_data->setup_aovs(universe);
-            camera_data->setup_filter(universe);
-        }
-    }
-}
-
-
 AI_SHADER_NODE_EXPORT_METHODS(cryptomatteMtd)
 
 enum cryptomatteParams {
@@ -33,6 +15,8 @@ enum cryptomatteParams {
     p_aov_crypto_object,
     p_aov_crypto_material,
     p_preview_in_exr,
+    p_custom_output_driver,
+    p_create_depth_outputs,
     p_process_maya,
     p_process_paths,
     p_process_obj_path_pipes,
@@ -57,6 +41,8 @@ node_parameters {
     AiParameterStr("aov_crypto_object", "crypto_object");
     AiParameterStr("aov_crypto_material", "crypto_material");
     AiParameterBool("preview_in_exr", CRYPTO_PREVIEWINEXR_DEFAULT);
+    AiParameterBool("custom_output_driver", false);
+    AiParameterBool("create_depth_outputs", true);
     AiParameterBool("process_maya", true);
     AiParameterBool("process_paths", true);
     AiParameterBool("process_obj_path_pipes", true);
@@ -126,10 +112,14 @@ node_update {
                                     AiNodeGetStr(node, "user_crypto_src_2").c_str(),
                                     AiNodeGetStr(node, "user_crypto_src_3").c_str());
 
-    data->setup_all(universe, AiNodeGetStr(node, "aov_crypto_asset"), AiNodeGetStr(node, "aov_crypto_object"),
-                    AiNodeGetStr(node, "aov_crypto_material"), uc_aov_array, uc_src_array);
-
-    setup_outputs_lentil(universe);
+    data->setup_all(universe, 
+                    AiNodeGetStr(node, "aov_crypto_asset"), 
+                    AiNodeGetStr(node, "aov_crypto_object"),
+                    AiNodeGetStr(node, "aov_crypto_material"), 
+                    uc_aov_array, 
+                    uc_src_array, 
+                    AiNodeGetBool(node, "custom_output_driver"), 
+                    AiNodeGetBool(node, "create_depth_outputs"));
 }
 
 shader_evaluate {

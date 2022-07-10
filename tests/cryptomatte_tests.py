@@ -358,13 +358,14 @@ class Cryptomatte000(CryptomatteTestBase):
             self.assertIn("Cryptomatte unit tests: Complete", log_contents,
                           "C++ unit test did not complete. ")
 
+    @unittest.skip("Not necessary outside of distributing binaries")
     def test_build_compatibility(self):
         """ Tests that builds maximize compatibility with 
         later versions of Arnold. Currently this means building with
-        5.0.1.0 for 5.0.* and 5.1.*, and building against 
-        5.2.0.0 for 5.2.*. 
+        6.0.0.0 for 6.0.* and
+        6.2.0.0 for 6.2.*. 
         """
-        legal_versions = ['5.0.1.0', '5.2.0.0', '6.0.0.0', '6.1.0.0', '6.2.0.0']
+        legal_versions = ['6.0.0.0', '6.1.0.0', '6.2.0.0', '7.0.0.0']
         legal_phrases = ['cryptomatte uses Arnold %s' % x for x in legal_versions]
         with open(self.result_log) as f:
             log_contents = f.read()

@@ -84,8 +84,6 @@ getting global
 
 */
 
-#pragma once
-
 #include "MurmurHash3.h"
 #include <ai.h>
 #include <algorithm>
@@ -99,7 +97,6 @@ getting global
 #include <string>
 #include <unordered_set>
 #include <vector>
-
 
 #define NOMINMAX // lets you keep using std::min on windows
 
@@ -195,8 +192,6 @@ inline void crypto_crit_sec_leave() {
     if (g_critsec_active)
         AiCritSecLeave(&g_critsec);
 }
-
-
 
 ///////////////////////////////////////////////
 //
@@ -788,6 +783,12 @@ struct CryptomatteData {
     AtArray* aov_array_cryptoobject = nullptr;
     AtArray* aov_array_cryptomaterial = nullptr;
     UserCryptomattes user_cryptomattes;
+    // Custom output drivers need to be considered as if they 
+    // were a driver_exr
+    bool custom_output_driver = false;
+    // Do we want to create new outputs for the "depth" AOVs
+    // (e.g. crypto_material00, crypto_material01, etc...)
+    bool create_depth_outputs = true;
 
     // User options.
     uint8_t option_depth;
@@ -806,9 +807,6 @@ struct CryptomatteData {
     // Nested vector of paths for each user cryptomatte.
     std::vector<StringVector> manifs_user_paths;
 
-    bool started = false;
-    bool is_setup_completed;
-
 public:
     CryptomatteData() {
         set_option_channels(CRYPTO_DEPTH_DEFAULT, CRYPTO_PREVIEWINEXR_DEFAULT);
@@ -820,15 +818,17 @@ public:
 
     void setup_all(AtUniverse *universe, 
                    const AtString aov_cryptoasset_, const AtString aov_cryptoobject_,
-                   const AtString aov_cryptomaterial_, AtArray* uc_aov_array,
-                   AtArray* uc_src_array) {
-        
-        started = true;
-
+                   const AtString aov_cryptomaterial_, 
+                   AtArray* uc_aov_array,
+                   AtArray* uc_src_array,
+                   bool custom_output_driver_,
+                   bool create_depth_outputs_) {
         aov_cryptoasset = aov_cryptoasset_;
         aov_cryptoobject = aov_cryptoobject_;
         aov_cryptomaterial = aov_cryptomaterial_;
 
+        custom_output_driver = custom_output_driver_;
+        create_depth_outputs = create_depth_outputs_;
         destroy_arrays();
 
         user_cryptomattes = UserCryptomattes(uc_aov_array, uc_src_array);
@@ -836,10 +836,8 @@ public:
         crypto_crit_sec_enter();
         setup_outputs(universe);
         crypto_crit_sec_leave();
-
-        is_setup_completed = true;
     }
- 
+
     void set_option_channels(int depth, bool exr_preview_channels) {
         depth = std::min(std::max(depth, 1), MAX_CRYPTOMATTE_DEPTH);
         option_depth = depth;
@@ -981,6 +979,7 @@ private:
         String aov_type_tok = "";
         String filter_tok = "";
         String driver_tok = "";
+        String layer_tok = "";
         bool half_flag = false;
         AtNode* raw_driver = nullptr;
         AtUniverse *universe = nullptr;
@@ -1002,17 +1001,29 @@ private:
             const String c3 = to_string_safe(strtok(nullptr, " "));
             const String c4 = to_string_safe(strtok(nullptr, " "));
             const String c5 = to_string_safe(strtok(nullptr, " "));
+            const String c6 = to_string_safe(strtok(nullptr, " "));
             free(temp_string);
 
-            const bool no_camera = c4.empty() || c4 == String("HALF");
+            // The first token c0 can eventually be a camera name. To ensure this, we look for such a node in the current universe
+            const AtNode *camNode = AiNodeLookUpByName(universe, AtString(c0.c_str()));
+            const bool has_camera = (camNode && AiNodeEntryGetType(AiNodeGetNodeEntry(camNode)) == AI_NODE_CAMERA);
+            camera_tok = has_camera ? c0 : "";
 
-            half_flag = (no_camera ? c4 : c5) == String("HALF");
-
-            camera_tok = no_camera ? "" : c0;
-            aov_name_tok = no_camera ? c0 : c1;
-            aov_type_tok = no_camera ? c1 : c2;
-            filter_tok = no_camera ? c2 : c3;
-            driver_tok = no_camera ? c3 : c4;
+            // the half flag is that last one in the outputs line, it can either be c4, c5, or c6
+            half_flag = ((c6 == String("HALF")) || 
+                        (c6.empty() && c5 == String("HALF")) ||
+                        (c5.empty() && c4 == String("HALF")));
+            
+            // Aov name, type, filter and driver, are mandatory tokens, that can eventually be preceded by the camera token
+            aov_name_tok = has_camera ? c1 : c0;
+            aov_type_tok = has_camera ? c2 : c1;
+            filter_tok = has_camera ? c3 : c2;
+            driver_tok = has_camera ? c4 : c3;
+            layer_tok = has_camera ? c5 : c4;
+            // Ensure we're not confusing the optional layer token
+            //  with the (also optional) HALF flag
+            if (layer_tok == String("HALF"))
+                layer_tok = String("");
 
             driver = AiNodeLookUpByName(universe, driver_tok.c_str());
         }
@@ -1033,6 +1044,10 @@ private:
             output_str.append(filter_tok);
             output_str.append(" ");
             output_str.append(driver_tok);
+            if (!layer_tok.empty()) {
+                output_str.append(" ");
+                output_str.append(layer_tok);
+            }
             if (half_flag) // output was already flagged half
                 output_str.append(" HALF");
             return output_str;
@@ -1092,9 +1107,11 @@ private:
             if (crypto_aovs && check_driver(driver)) {
                 setup_new_outputs(universe, t_output, crypto_aovs, outputs_new);
 
-                if (AiNodeGetBool(driver, "half_precision")) {
-                    AiNodeSetBool(driver, "half_precision", false);
-                    modified_drivers.insert(driver);
+                if (AiNodeEntryLookUpParameter(AiNodeGetNodeEntry(driver), "half_precision")) {
+                    if (AiNodeGetBool(driver, "half_precision")) {
+                        AiNodeSetBool(driver, "half_precision", false);
+                        modified_drivers.insert(driver);
+                    }
                 }
                 if (noop_filter)
                     t_output.filter_tok = AiNodeGetName(noop_filter);
@@ -1124,13 +1141,13 @@ private:
                 AiArraySetStr(final_outputs, i++, t_output.rebuild_output().c_str());
             for (auto& t_output : outputs_new)
                 AiArraySetStr(final_outputs, i++, t_output.rebuild_output().c_str());
+
             AiNodeSetArray(AiUniverseGetOptions(universe), "outputs", final_outputs);
         }
 
         build_standard_metadata(universe, driver_asset, driver_object, driver_material);
         build_user_metadata(universe, tmp_uc_drivers);
     }
-
 
     void setup_new_outputs(AtUniverse *universe, TokenizedOutput& t_output, 
                           AtArray* crypto_aovs, std::vector<TokenizedOutput>& new_outputs) const {
@@ -1139,20 +1156,24 @@ private:
 
         // Outlaw RLE, dwaa, dwab
         AtNode* driver = t_output.get_driver();
-        const AtEnum compressions =
-            AiParamGetEnum(AiNodeEntryLookUpParameter(AiNodeGetNodeEntry(driver), "compression"));
-        const int compression = AiNodeGetInt(driver, "compression");
-        const bool cmp_rle = compression == AiEnumGetValue(compressions, "rle"),
-                   cmp_dwa = compression == AiEnumGetValue(compressions, "dwaa") ||
-                             compression == AiEnumGetValue(compressions, "dwab");
-        if (cmp_rle || cmp_dwa) {
-            if (cmp_rle)
-                AiMsgWarning("Cryptomatte cannot be set to RLE compression- it "
-                             "does not work on full float. Switching to Zip.");
-            if (cmp_dwa)
-                AiMsgWarning("Cryptomatte cannot be set to dwa compression- the "
-                             "compression breaks Cryptomattes. Switching to Zip.");
-            AiNodeSetStr(driver, "compression", "zip");
+        const AtNodeEntry *driverEntry = AiNodeGetNodeEntry(driver);
+        const AtParamEntry* compressionParamEntry = AiNodeEntryLookUpParameter(driverEntry, "compression");
+
+        if (compressionParamEntry) {
+            const AtEnum compressions = AiParamGetEnum(compressionParamEntry);
+            const int compression = AiNodeGetInt(driver, "compression");
+            const bool cmp_rle = compression == AiEnumGetValue(compressions, "rle"),
+                       cmp_dwa = compression == AiEnumGetValue(compressions, "dwaa") ||
+                                 compression == AiEnumGetValue(compressions, "dwab");
+            if (cmp_rle || cmp_dwa) {
+                if (cmp_rle)
+                    AiMsgWarning("Cryptomatte cannot be set to RLE compression- it "
+                                 "does not work on full float. Switching to Zip.");
+                if (cmp_dwa)
+                    AiMsgWarning("Cryptomatte cannot be set to dwa compression- the "
+                                 "compression breaks Cryptomattes. Switching to Zip.");
+                AiNodeSetStr(driver, "compression", "zip");
+            }
         }
 
         AtArray* outputs = AiNodeGetArray(AiUniverseGetOptions(universe), "outputs");
@@ -1168,23 +1189,30 @@ private:
 
             const String filter_rank_name = t_output.aov_name_tok + "_filter" + rank_num;
             const String aov_rank_name = t_output.aov_name_tok + rank_num;
+            if (create_depth_outputs) {
+                if (AiNodeLookUpByName(universe, filter_rank_name.c_str()) == nullptr)
+                    AtNode* filter = create_filter(universe, orig_filter, filter_rank_name, i);
 
-            if (AiNodeLookUpByName(universe, filter_rank_name.c_str()) == nullptr)
-                AtNode* filter = create_filter(universe, orig_filter, filter_rank_name, i);
+                TokenizedOutput new_t_output = t_output;
+                new_t_output.aov_name_tok = aov_rank_name;
 
-            TokenizedOutput new_t_output = t_output;
-            new_t_output.aov_name_tok = aov_rank_name;
-            new_t_output.aov_type_tok = "FLOAT";
-            new_t_output.filter_tok = filter_rank_name;
-            new_t_output.half_flag = false;
+                // also append the rank to the eventual layer name
+                if (!new_t_output.layer_tok.empty())
+                    new_t_output.layer_tok += rank_num;
 
-            String new_output_str = new_t_output.rebuild_output();
-            if (!output_set.count(new_output_str)) {
-                AiAOVRegister(aov_rank_name.c_str(), AI_TYPE_FLOAT, AI_AOV_BLEND_NONE);
-                new_outputs.push_back(new_t_output);
-                output_set.insert(new_output_str);
+                new_t_output.aov_type_tok = "FLOAT";
+                new_t_output.filter_tok = filter_rank_name;
+                new_t_output.half_flag = false;
+
+                String new_output_str = new_t_output.rebuild_output();
+                if (!output_set.count(new_output_str)) {
+                    new_outputs.push_back(new_t_output);
+                    output_set.insert(new_output_str);
+                }
             }
-
+            // Always call AiAOVRegister for the depth AOVs, even if we didn't create them here
+            // (they could already exist in the scene outputs)
+            AiAOVRegister(aov_rank_name.c_str(), AI_TYPE_FLOAT, AI_AOV_BLEND_NONE);
             AiArraySetStr(crypto_aovs, i, aov_rank_name.c_str());
         }
     }
@@ -1196,12 +1224,11 @@ private:
                                : 2.0f;
         const String filter_type = AiNodeEntryGetName(filter_nentry);
         const String filter_param = filter_type.substr(0, filter_type.find("_filter"));
-        
+
         AtNode* filter = AiNode(universe, "cryptomatte_filter", filter_name.c_str(), nullptr);
         AiNodeSetStr(filter, "filter", filter_param.c_str());
         AiNodeSetInt(filter, "rank", aovindex * 2);
         AiNodeSetFlt(filter, "width", width);
-        
         return filter;
     }
 
@@ -1241,17 +1268,20 @@ private:
         path_out = "";
         metadata_path_out = "";
         if (check_driver(driver) && option_sidecar_manifests) {
-            String filepath = String(AiNodeGetStr(driver, "filename").c_str());
-            const size_t exr_found = filepath.find(".exr");
-            if (exr_found != String::npos)
-                filepath = filepath.substr(0, exr_found);
 
-            path_out = filepath + "." + token.c_str() + ".json";
-            const size_t last_partition = path_out.find_last_of("/\\");
-            if (last_partition == String::npos)
-                metadata_path_out += path_out;
-            else
-                metadata_path_out += path_out.substr(last_partition + 1);
+            if (AiNodeEntryLookUpParameter(AiNodeGetNodeEntry(driver), "filename")) {
+                String filepath = String(AiNodeGetStr(driver, "filename").c_str());
+                const size_t exr_found = filepath.find(".exr");
+                if (exr_found != String::npos)
+                    filepath = filepath.substr(0, exr_found);
+
+                path_out = filepath + "." + token.c_str() + ".json";
+                const size_t last_partition = path_out.find_last_of("/\\");
+                if (last_partition == String::npos)
+                    metadata_path_out += path_out;
+                else
+                    metadata_path_out += path_out.substr(last_partition + 1);
+            }
         }
     }
 
@@ -1473,6 +1503,10 @@ private:
         if (!check_driver(driver))
             return;
 
+        if (!AiNodeEntryLookUpParameter(AiNodeGetNodeEntry(driver), "custom_attributes") &&
+            !AiNodeLookUpUserParameter(driver, "custom_attributes")) {
+            AiNodeDeclare(driver, "custom_attributes", "constant ARRAY STRING");
+        }
         AtArray* orig_md = AiNodeGetArray(driver, "custom_attributes");
         const uint32_t orig_num_entries = orig_md ? AiArrayGetNumElements(orig_md) : 0;
 
@@ -1511,7 +1545,7 @@ private:
     }
 
     bool check_driver(AtNode* driver) const {
-        return driver && AiNodeIs(driver, AtString("driver_exr"));
+        return driver && (custom_output_driver || AiNodeIs(driver, AtString("driver_exr")));
     }
 
     bool metadata_needed_on_drivers(const std::vector<AtNode*>& drivers, const AtString aov_name) {

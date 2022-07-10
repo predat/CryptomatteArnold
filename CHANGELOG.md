@@ -1,3 +1,15 @@
+### CryptomatteArnold 1.2.0 release notes: 
+
+Adds capabilities required to use Cryptomatte in Solaris. (Note this doesn't automatically bring support for Cryptomatte to Solaris, but makes the necessary changes to CryptomatteArnold.)
+
+* Added support for custom output drivers, needed for Solaris.  See #7
+* Added ability to skip creating depth outputs automatically, needed for Solaris. See #7
+* Support layer token in outputs. See #8
+* Fixes tests (reblesses results) to work with Arnold 7
+* Disables "compatibility maximizing" test as Cryptomatte is now included with Arnold
+
+Thanks @sebastienblor
+
 ### CryptomatteArnold 1.1.2 release notes: 
 
 * Removes calls to deprecated APIs and works with multiple Arnold universes. (Thanks @sebastienblor)
