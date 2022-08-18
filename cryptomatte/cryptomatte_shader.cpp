@@ -15,8 +15,8 @@ void setup_outputs_lentil(AtUniverse *universe) {
         
         if (camera_data->crypto_in_same_queue) { // lentil node has been executed already and has been waiting 5sec in a deadlock
             AiMsgWarning("Lentil setup was done inside of cryptomatte shader to avoid deadlock.");
-            camera_data->setup_aovs(universe);
-            camera_data->setup_filter(universe);
+            camera_data->setup_lentil_aovs(universe);
+            camera_data->setup_crypto_aovs(universe);
         }
     }
 }

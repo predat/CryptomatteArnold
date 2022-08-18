@@ -811,7 +811,7 @@ struct CryptomatteData {
 
     // lentil additions
     bool started = false;
-    bool is_setup_completed;
+    bool is_setup_completed = false;
 
 public:
     CryptomatteData() {
