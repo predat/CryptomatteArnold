@@ -17,6 +17,7 @@ void setup_outputs_lentil(AtUniverse *universe) {
             AiMsgWarning("Lentil setup was done inside of cryptomatte shader to avoid deadlock.");
             camera_data->setup_lentil_aovs(universe);
             camera_data->setup_crypto_aovs(universe);
+            camera_data->setup_filter(universe);
         }
     }
 }
