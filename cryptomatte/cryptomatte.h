@@ -808,7 +808,6 @@ public:
         user_cryptomattes = UserCryptomattes(uc_aov_array, uc_src_array);
 
         setup_outputs(universe);
-        crypto_crit_sec_leave();
 
         // lentil addition
         is_setup_completed = true;
